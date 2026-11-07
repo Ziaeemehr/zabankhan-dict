@@ -1,14 +1,26 @@
 #!/bin/zsh
-# Fill Persian meanings a little at a time, then publish. Safe to stop (Ctrl-C) and rerun any time.
-#   tools/fill-persian.sh [minutes]   (default 60)
+# Fill v2 translations locally, then regenerate shards. No publication.
+# tools/fill-persian.sh [minutes] (default 60)
 set -u
-DB=/Users/ziaee/git/zabankhan/content-tools/out/fr-dict.sqlite
 cd "${0:A:h}/.."
+DB="$PWD/dist/fr-v2.sqlite"
+[[ -f "$DB" ]] || { print -u2 "Build the v2 database first: python3 tools/build.py"; exit 1; }
 started=0
-if ! curl -sf http://127.0.0.1:8080/health >/dev/null; then zsh -ic 'llm-on' >/dev/null 2>&1; started=1
-  until curl -sf http://127.0.0.1:8080/health >/dev/null; do sleep 5; done; fi
-perl -e "alarm shift; exec @ARGV" $(( ${1:-60} * 60 )) python3 /Users/ziaee/git/zabankhan/content-tools/gen_persian_meanings.py "$DB" --limit 100000
-[ $started = 1 ] && zsh -ic 'llm-off' >/dev/null 2>&1
-python3 tools/publish.py "$DB" fr
-git add -A && git commit -qm "Persian meanings: $(python3 -c "import json;print(json.load(open('fr/index.json'))['persian'])") entries" && git push -q
-gh release upload fr-v1 dist/fr.sqlite --clobber
+cleanup() {
+  if [[ $started = 1 ]]; then zsh -ic 'llm-off' >/dev/null 2>&1; fi
+}
+trap cleanup EXIT
+if ! curl -sf http://127.0.0.1:8080/health >/dev/null; then
+  zsh -ic 'llm-on' >/dev/null 2>&1 || exit 1
+  started=1
+  ready=0
+  for attempt in {1..120}; do
+    if curl -sf http://127.0.0.1:8080/health >/dev/null; then ready=1; break; fi
+    sleep 5
+  done
+  [[ $ready = 1 ]] || { print -u2 'Local model did not become ready.'; exit 1; }
+fi
+python3 tools/fill_persian_v2.py "$DB" --limit 100000 --minutes "${1:-60}"
+fill_status=$?
+python3 tools/build.py --from-sqlite --db "$DB" || exit $?
+exit $fill_status
