@@ -17,10 +17,14 @@ def main():
     src, lang = sys.argv[1], sys.argv[2]
     db = sqlite3.connect(src)
     cols = ["word", "pos", "rank", "ipa", "gender", "en", "example", "forms", "fa"]
+    # Older databases predate monolingual definitions.
+    if "french_definitions" in {r[1] for r in db.execute("PRAGMA table_info(entry)")}:
+        cols.append("french_definitions")
     shards = {}
     for row in db.execute(f"SELECT {', '.join(cols)} FROM entry ORDER BY rank"):
         e = dict(zip(cols, row))
         e["en"] = json.loads(e["en"]) if e["en"] else []
+        e["french_definitions"] = json.loads(e["french_definitions"]) if e.get("french_definitions") else []
         e = {k: v for k, v in e.items() if v not in ("", [], None)}
         shards.setdefault(key(e["word"]), []).append(e)
     shutil.rmtree(lang, ignore_errors=True); os.makedirs(lang)

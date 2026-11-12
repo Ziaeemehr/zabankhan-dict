@@ -240,7 +240,7 @@ def read_translations(path):
     return senses, examples
 
 
-def build_database(kaikki, lexique, destination, legacy=LEGACY):
+def build_database(kaikki, lexique, destination, legacy=LEGACY, french_wiktionnaire=None, validation_dir=ROOT / "validation"):
     destination = Path(destination)
     previous_senses, previous_examples = read_translations(destination)
     old = {}
@@ -294,6 +294,24 @@ def build_database(kaikki, lexique, destination, legacy=LEGACY):
                 if len(e['senses']) < 8 and sense not in e['senses']:
                     e['senses'].append(sense)
 
+    # Add sourced French definitions as a separate monolingual field, grouped by headword and POS.
+    if french_wiktionnaire and Path(french_wiktionnaire).exists():
+        with gzip.open(french_wiktionnaire, 'rt', encoding='utf-8') as source:
+            for line in source:
+                raw = json.loads(line)
+                word, pos = clean(raw.get('word', '')), POS.get(raw.get('pos'))
+                if raw.get('lang_code') != 'fr' or not word or not pos or (word, pos) not in entries:
+                    continue
+                definitions = entries[(word, pos)].setdefault('french_definitions', [])
+                for sense in raw.get('senses', []):
+                    tags = set(sense.get('tags', []))
+                    if sense.get('form_of') or sense.get('alt_of') or {'form-of', 'alt-of'} & tags:
+                        continue
+                    for definition in sense.get('glosses', []):
+                        definition = clean(definition)
+                        if definition and len(definition) <= 240 and not definition.endswith(':') and definition not in definitions and len(definitions) < 6:
+                            definitions.append(definition)
+
     # Entry-level examples are candidates only when every sense lacks examples.
     candidates = defaultdict(set)
     example_source = Path(kaikki).parent/'frwiktionary-fr.jsonl.gz'
@@ -335,7 +353,7 @@ def build_database(kaikki, lexique, destination, legacy=LEGACY):
         if form_freq.get(source, 0) > 10 and (source, pos) not in lex_attested and source in headword_words:
             dropped.append((source, pos, '; '.join(sorted(edges[(source,pos)]))))
             del edges[(source,pos)]
-    drop_path = ROOT/'validation/dropped-redirects.csv'
+    drop_path = Path(validation_dir) / 'dropped-redirects.csv'
     drop_path.parent.mkdir(parents=True, exist_ok=True)
     with drop_path.open('w',encoding='utf-8',newline='') as f:
         writer=csv.writer(f); writer.writerow(['form','pos','targets']); writer.writerows(sorted(dropped))
@@ -407,7 +425,7 @@ def build_database(kaikki, lexique, destination, legacy=LEGACY):
                 PRAGMA foreign_keys=ON;
                 CREATE TABLE entry(id INTEGER PRIMARY KEY, word TEXT NOT NULL, pos TEXT NOT NULL, freq INTEGER NOT NULL,
                     frequency REAL NOT NULL, ipa TEXT NOT NULL, gender TEXT NOT NULL, audio TEXT NOT NULL,
-                    forms TEXT NOT NULL, expressions TEXT NOT NULL, UNIQUE(word,pos));
+                    forms TEXT NOT NULL, expressions TEXT NOT NULL, french_definitions TEXT NOT NULL DEFAULT '[]', UNIQUE(word,pos));
                 CREATE TABLE sense(id INTEGER PRIMARY KEY, entry_id INTEGER NOT NULL REFERENCES entry(id),
                     position INTEGER NOT NULL, en TEXT NOT NULL, fa TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL, synonyms TEXT NOT NULL);
                 CREATE TABLE example(id INTEGER PRIMARY KEY, sense_id INTEGER NOT NULL REFERENCES sense(id),
@@ -422,8 +440,8 @@ def build_database(kaikki, lexique, destination, legacy=LEGACY):
             more_examples = {}
             entry_ids_written = {}
             for e in sorted(entries.values(), key=lambda e: (-freq.get(normalize(e['word']), -1), e['word'], e['pos'])):
-                eid = db.execute('INSERT INTO entry(word,pos,freq,frequency,ipa,gender,audio,forms,expressions) VALUES(?,?,?,?,?,?,?,?,?)',
-                                 (e['word'], e['pos'], e['freq'], freq.get(normalize(e['word']), 0), e['ipa'], e['gender'], e['audio'], dumps(e['forms']), dumps(e['expressions']))).lastrowid
+                eid = db.execute('INSERT INTO entry(word,pos,freq,frequency,ipa,gender,audio,forms,expressions,french_definitions) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                                 (e['word'], e['pos'], e['freq'], freq.get(normalize(e['word']), 0), e['ipa'], e['gender'], e['audio'], dumps(e['forms']), dumps(e['expressions']), dumps(e.get('french_definitions', [])))).lastrowid
                 if e.get('more_examples'): more_examples[str(eid)] = e['more_examples']
                 entry_ids_written[(e['word'],e['pos'])] = eid
                 for i, s in enumerate(e['senses']):
@@ -461,7 +479,7 @@ def export_shards(database, output, max_bytes=999_999):
         entry_ids = {}
         for row in db.execute('SELECT * FROM entry ORDER BY id'):
             e = {k: row[k] for k in ('id', 'word', 'pos', 'freq', 'ipa', 'gender', 'audio')}
-            e.update(senses=senses[row['id']], forms=json.loads(row['forms']), expressions=json.loads(row['expressions']))
+            e.update(senses=senses[row['id']], forms=json.loads(row['forms']), expressions=json.loads(row['expressions']), french_definitions=json.loads(row['french_definitions'] if 'french_definitions' in row.keys() else '[]'))
             if more_examples.get(str(row['id'])): e['more_examples'] = more_examples[str(row['id'])]
             entry_ids[(e['word'], e['pos'])] = e['id']
             if e['audio'].startswith(('https://', 'http://')) and len(e['audio'].split('/', 3)) == 4:
@@ -496,7 +514,7 @@ def export_shards(database, output, max_bytes=999_999):
             [s.get('en', ''), s.get('fa', ''), s.get('tags', []), s.get('synonyms', []),
              [[x.get('text', ''), x.get('en', ''), x.get('fa', '')] for x in s.get('examples', [])]]
             for s in e.get('senses', [])]) for e in shard['entries']]
-        fields = ('id', 'word', 'pos', 'freq', 'ipa', 'gender', 'audio', 'senses', 'forms', 'expressions', 'more_examples')
+        fields = ('id', 'word', 'pos', 'freq', 'ipa', 'gender', 'audio', 'senses', 'forms', 'expressions', 'more_examples', 'french_definitions')
         wire['entries'] = [[e.get(k, [] if k in ('senses', 'expressions') else {} if k == 'forms' else '')
                             for k in fields] for e in wire['entries']]
         labels = sorted({r[1] for redirects in shard['redirects'].values() for r in redirects})
@@ -561,14 +579,16 @@ def export_shards(database, output, max_bytes=999_999):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--kaikki', type=Path, default=SOURCE / 'kaikki.org-dictionary-French.jsonl.gz')
+    parser.add_argument('--french-wiktionnaire', type=Path, default=SOURCE / 'frwiktionary-fr.jsonl.gz')
     parser.add_argument('--lexique', type=Path, default=SOURCE / 'Lexique383.tsv')
     parser.add_argument('--legacy', type=Path, default=LEGACY)
     parser.add_argument('--db', type=Path, default=ROOT / 'dist/fr-v2.sqlite')
+    parser.add_argument('--validation-dir', type=Path, default=ROOT / 'validation')
     parser.add_argument('--output', type=Path, default=ROOT / 'fr/v2')
     parser.add_argument('--from-sqlite', action='store_true')
     args = parser.parse_args()
     if not args.from_sqlite:
-        build_database(args.kaikki, args.lexique, args.db, args.legacy)
+        build_database(args.kaikki, args.lexique, args.db, args.legacy, args.french_wiktionnaire, args.validation_dir)
     export_shards(args.db, args.output)
 
 
