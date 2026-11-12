@@ -2,15 +2,6 @@
  "version": 4,
  "decks": [
   {
-   "id": "comm-diag-a2b1-fa-fr",
-   "name": "Comm_diag_a2b1 · FA→FR",
-   "level": "A2-B1",
-   "kind": "phrases",
-   "file": "decks/comm-diag-a2b1-fa-fr.json",
-   "count": 1343,
-   "sizeBytes": 221415
-  },
-  {
    "id": "gram-dial-a1-vocab",
    "name": "Grammaire en dialogues A1 · Mots",
    "level": "A1",
@@ -90,6 +81,15 @@
    "file": "decks/comm-dial-a2b1-phrases.json",
    "count": 1354,
    "sizeBytes": 551899
+  },
+  {
+   "id": "comm-diag-a2b1-fa-fr",
+   "name": "Comm_diag_a2b1 · FA→FR",
+   "level": "A2-B1",
+   "kind": "phrases",
+   "file": "decks/comm-diag-a2b1-fa-fr.json",
+   "count": 1343,
+   "sizeBytes": 221415
   }
  ],
  "stories": [
