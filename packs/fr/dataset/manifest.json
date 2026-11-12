@@ -1,0 +1,278 @@
+{
+ "version": 4,
+ "decks": [
+  {
+   "id": "comm-diag-a2b1-fa-fr",
+   "name": "Comm_diag_a2b1 · FA→FR",
+   "level": "A2-B1",
+   "kind": "phrases",
+   "file": "decks/comm-diag-a2b1-fa-fr.json",
+   "count": 1343,
+   "sizeBytes": 221415
+  },
+  {
+   "id": "gram-dial-a1-vocab",
+   "name": "Grammaire en dialogues A1 · Mots",
+   "level": "A1",
+   "kind": "words",
+   "file": "decks/gram-dial-a1-vocab.json",
+   "count": 372,
+   "sizeBytes": 130177
+  },
+  {
+   "id": "gram-dial-b1-vocab",
+   "name": "Grammaire en dialogues B1 · Mots",
+   "level": "B1",
+   "kind": "words",
+   "file": "decks/gram-dial-b1-vocab.json",
+   "count": 734,
+   "sizeBytes": 324986
+  },
+  {
+   "id": "gram-dial-b1-phrases",
+   "name": "Grammaire en dialogues B1 · Phrases",
+   "level": "B1",
+   "kind": "phrases",
+   "file": "decks/gram-dial-b1-phrases.json",
+   "count": 732,
+   "sizeBytes": 314649
+  },
+  {
+   "id": "voc-dial-a1-vocab",
+   "name": "Vocabulaire en dialogues A1 · Mots",
+   "level": "A1",
+   "kind": "words",
+   "file": "decks/voc-dial-a1-vocab.json",
+   "count": 660,
+   "sizeBytes": 258686
+  },
+  {
+   "id": "voc-prog-a2b1-vocab",
+   "name": "Vocabulaire progressif A2-B1 · Mots",
+   "level": "A2-B1",
+   "kind": "words",
+   "file": "decks/voc-prog-a2b1-vocab.json",
+   "count": 1111,
+   "sizeBytes": 454091
+  },
+  {
+   "id": "voc-prog-a2b1-phrases",
+   "name": "Vocabulaire progressif A2-B1 · Phrases",
+   "level": "A2-B1",
+   "kind": "phrases",
+   "file": "decks/voc-prog-a2b1-phrases.json",
+   "count": 1123,
+   "sizeBytes": 155941
+  },
+  {
+   "id": "comm-ess-a1-phrases",
+   "name": "Communication essentielle A1 · Phrases",
+   "level": "A1",
+   "kind": "phrases",
+   "file": "decks/comm-ess-a1-phrases.json",
+   "count": 495,
+   "sizeBytes": 49217
+  },
+  {
+   "id": "comm-ess-a2-phrases",
+   "name": "Communication essentielle A2 · Phrases",
+   "level": "A2",
+   "kind": "phrases",
+   "file": "decks/comm-ess-a2-phrases.json",
+   "count": 569,
+   "sizeBytes": 67521
+  },
+  {
+   "id": "comm-dial-a2b1-phrases",
+   "name": "Communication en dialogues A2-B1",
+   "level": "A2-B1",
+   "kind": "phrases",
+   "file": "decks/comm-dial-a2b1-phrases.json",
+   "count": 1354,
+   "sizeBytes": 551899
+  }
+ ],
+ "stories": [
+  {
+   "id": "stories-fabulang-a1",
+   "name": "Fabulang A1",
+   "level": "A1",
+   "source": "Fabulang",
+   "file": "stories/stories-fabulang-a1.json",
+   "count": 13,
+   "sizeBytes": 32308
+  },
+  {
+   "id": "stories-fabulang-a2",
+   "name": "Fabulang A2",
+   "level": "A2",
+   "source": "Fabulang",
+   "file": "stories/stories-fabulang-a2.json",
+   "count": 13,
+   "sizeBytes": 34650
+  },
+  {
+   "id": "stories-fabulang-b1",
+   "name": "Fabulang B1",
+   "level": "B1",
+   "source": "Fabulang",
+   "file": "stories/stories-fabulang-b1.json",
+   "count": 13,
+   "sizeBytes": 45324
+  },
+  {
+   "id": "stories-fabulang-b2",
+   "name": "Fabulang B2",
+   "level": "B2",
+   "source": "Fabulang",
+   "file": "stories/stories-fabulang-b2.json",
+   "count": 13,
+   "sizeBytes": 46627
+  },
+  {
+   "id": "stories-fabulang-c1",
+   "name": "Fabulang C1",
+   "level": "C1",
+   "source": "Fabulang",
+   "file": "stories/stories-fabulang-c1.json",
+   "count": 13,
+   "sizeBytes": 49793
+  },
+  {
+   "id": "stories-fabulang-c2",
+   "name": "Fabulang C2",
+   "level": "C2",
+   "source": "Fabulang",
+   "file": "stories/stories-fabulang-c2.json",
+   "count": 13,
+   "sizeBytes": 53951
+  },
+  {
+   "id": "stories-fluencydrop-a2",
+   "name": "FluencyDrop A2",
+   "level": "A2",
+   "source": "FluencyDrop",
+   "file": "stories/stories-fluencydrop-a2.json",
+   "count": 33,
+   "sizeBytes": 53915
+  },
+  {
+   "id": "stories-fluencydrop-b1",
+   "name": "FluencyDrop B1",
+   "level": "B1",
+   "source": "FluencyDrop",
+   "file": "stories/stories-fluencydrop-b1.json",
+   "count": 33,
+   "sizeBytes": 59019
+  },
+  {
+   "id": "stories-fluencydrop-b2",
+   "name": "FluencyDrop B2",
+   "level": "B2",
+   "source": "FluencyDrop",
+   "file": "stories/stories-fluencydrop-b2.json",
+   "count": 33,
+   "sizeBytes": 63689
+  },
+  {
+   "id": "stories-lingua-a1",
+   "name": "Lingua A1",
+   "level": "A1",
+   "source": "Lingua",
+   "file": "stories/stories-lingua-a1.json",
+   "count": 7,
+   "sizeBytes": 12776
+  },
+  {
+   "id": "stories-lingua-a2",
+   "name": "Lingua A2",
+   "level": "A2",
+   "source": "Lingua",
+   "file": "stories/stories-lingua-a2.json",
+   "count": 14,
+   "sizeBytes": 26687
+  },
+  {
+   "id": "stories-lingua-b1",
+   "name": "Lingua B1",
+   "level": "B1",
+   "source": "Lingua",
+   "file": "stories/stories-lingua-b1.json",
+   "count": 14,
+   "sizeBytes": 26572
+  },
+  {
+   "id": "stories-lingua-b2",
+   "name": "Lingua B2",
+   "level": "B2",
+   "source": "Lingua",
+   "file": "stories/stories-lingua-b2.json",
+   "count": 6,
+   "sizeBytes": 11473
+  },
+  {
+   "id": "stories-podcastfrancaisfacile-a1",
+   "name": "Podcast Français Facile A1",
+   "level": "A1",
+   "source": "Podcast Français Facile",
+   "file": "stories/stories-podcastfrancaisfacile-a1.json",
+   "count": 4,
+   "sizeBytes": 10689
+  },
+  {
+   "id": "stories-podcastfrancaisfacile-a2",
+   "name": "Podcast Français Facile A2",
+   "level": "A2",
+   "source": "Podcast Français Facile",
+   "file": "stories/stories-podcastfrancaisfacile-a2.json",
+   "count": 16,
+   "sizeBytes": 47922
+  },
+  {
+   "id": "stories-podcastfrancaisfacile-b1",
+   "name": "Podcast Français Facile B1",
+   "level": "B1",
+   "source": "Podcast Français Facile",
+   "file": "stories/stories-podcastfrancaisfacile-b1.json",
+   "count": 84,
+   "sizeBytes": 354356
+  },
+  {
+   "id": "stories-podcastfrancaisfacile-b2",
+   "name": "Podcast Français Facile B2",
+   "level": "B2",
+   "source": "Podcast Français Facile",
+   "file": "stories/stories-podcastfrancaisfacile-b2.json",
+   "count": 39,
+   "sizeBytes": 174754
+  },
+  {
+   "id": "stories-podcastfrancaisfacile-c1",
+   "name": "Podcast Français Facile C1",
+   "level": "C1",
+   "source": "Podcast Français Facile",
+   "file": "stories/stories-podcastfrancaisfacile-c1.json",
+   "count": 4,
+   "sizeBytes": 7495
+  },
+  {
+   "id": "stories-podcastfrancaisfacile-divers",
+   "name": "Podcast Français Facile Divers",
+   "level": "Divers",
+   "source": "Podcast Français Facile",
+   "file": "stories/stories-podcastfrancaisfacile-divers.json",
+   "count": 4,
+   "sizeBytes": 12388
+  }
+ ],
+ "lessonLabel": "Leçon",
+ "sentenceTranslations": {
+  "model": "gemma4",
+  "promptRevision": "lines-fa-v1",
+  "status": "complete"
+ },
+ "meaningLanguage": "fa",
+ "gradedStoriesFolder": "Histoires graduées",
+ "starterDeckIds": [],
+ "starterStoryIds": []
+}
