@@ -1,2 +1,4 @@
 dist/
 validation/issues.csv
+.clinerules
+.omc/

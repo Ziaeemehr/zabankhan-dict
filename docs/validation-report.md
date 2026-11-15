@@ -35,7 +35,7 @@ Fixes worth making: review redirect contradictions and frequent missing forms/le
 - French records with the same word+POS are aggregated across etymologies; sense counts sum extracted senses, including form-of senses. Counts are structural signals, not semantic alignment; ours are capped at eight. Examples require nonblank text. French examples are candidate sources only; meaning alignment and licensing/attribution need review before reuse.
 - CSV contains every flagged issue (including near IPA, unequal top-entry sense counts and example candidates); report tables show at most 15 per category, ordered by our frequency except redirects (alphabetical) and missing Lexique items (reference frequency). N/A means no comparable records. Percentages are unweighted.
 
-Inputs: `/Users/ziaee/git/zabankhan-dict/dist/fr-v2.sqlite`, `/Users/ziaee/git/zabankhan-dict-src/Lexique383.tsv`, `/Users/ziaee/git/zabankhan-dict-src/frwiktionary-fr.jsonl.gz`.
+Inputs: `dist/fr-v2.sqlite`, `/Users/ziaee/git/zabankhan-dict-src/Lexique383.tsv`, `/Users/ziaee/git/zabankhan-dict-src/frwiktionary-fr.jsonl.gz`.
 
 Loaded 88,673 SQLite entries, 436,336 redirects, 142,694 Lexique rows, 2,112,393 French records. Excluded Lexique POS rows: {'LIA': 1, '': 8}. CSV issues: 123,017.
 

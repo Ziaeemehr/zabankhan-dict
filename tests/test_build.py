@@ -81,6 +81,18 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(data['targets'][str(target_id)], ['prendre', 'verb'])
         self.assertEqual(data['form_labels'][label_id], 'ind.pres.1s')
 
+    def test_publish_counts_filled_senses(self):
+        import subprocess
+        import sys
+        with sqlite3.connect(self.db) as db:
+            db.execute("INSERT INTO sense(entry_id,position,en,fa,tags,synonyms) "
+                       "SELECT entry_id,99,'another gloss',fa,tags,synonyms FROM sense WHERE fa!=''")
+        subprocess.run([sys.executable, str(Path(build.__file__).with_name('publish.py')),
+                        str(self.db), str(self.out)], check=True, capture_output=True)
+        index = json.loads((self.out / 'index.json').read_text())
+        self.assertEqual(index['format'], 2)
+        self.assertEqual(index['persian'], 2)
+
     def test_sqlite_roundtrip_and_split(self):
         with sqlite3.connect(self.db) as db:
             db.execute("UPDATE example SET fa='دستم را بگیر'")

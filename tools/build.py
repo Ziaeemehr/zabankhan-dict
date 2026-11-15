@@ -503,7 +503,7 @@ def export_shards(database, output, max_bytes=999_999):
         for row in db.execute('SELECT * FROM redirect ORDER BY word,lemma,pos'):
             shards[shard_key(row['word'])]['redirects'].setdefault(row['word'], []).append([entry_ids[(row['lemma'], row['pos'])], row['form']])
         counts = {table: db.execute('SELECT count(*) FROM ' + table).fetchone()[0] for table in ('entry', 'sense', 'example', 'redirect')}
-        persian = db.execute("SELECT count(DISTINCT entry_id) FROM sense WHERE fa!=''").fetchone()[0]
+        persian = db.execute("SELECT count(*) FROM sense WHERE trim(coalesce(fa,''))!=''").fetchone()[0]
         sources = db.execute("SELECT value FROM meta WHERE key='sources'").fetchone()[0]
     targets = {eid: [word, pos] for (word, pos), eid in entry_ids.items()}
 

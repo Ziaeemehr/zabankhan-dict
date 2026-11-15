@@ -6,6 +6,9 @@ Shard key = first two letters of the first word, accents removed, lowercase ("_"
 The app downloads only the shard it needs; the full SQLite goes to a Release for offline use.
 """
 import json, os, shutil, sqlite3, sys, unicodedata, time
+from pathlib import Path
+
+from build import export_shards
 
 def key(word):
     first = word.split()[0] if word.split() else word
@@ -16,6 +19,10 @@ def key(word):
 def main():
     src, lang = sys.argv[1], sys.argv[2]
     db = sqlite3.connect(src)
+    if db.execute("SELECT name FROM sqlite_master WHERE name='sense'").fetchone():
+        db.close()
+        export_shards(Path(src), Path(lang))
+        return
     cols = ["word", "pos", "rank", "ipa", "gender", "en", "example", "forms", "fa"]
     # Older databases predate monolingual definitions.
     if "french_definitions" in {r[1] for r in db.execute("PRAGMA table_info(entry)")}:
