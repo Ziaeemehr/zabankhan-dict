@@ -56,6 +56,28 @@ class BuildTests(unittest.TestCase):
         with sqlite3.connect(self.db) as db:
             return {r[0] for r in db.execute('SELECT lemma FROM redirect WHERE word=?', (build.normalize(word),))}
 
+    def test_demonette_joins_exact_lemma_and_pos_and_exports_references(self):
+        relations = self.root / 'relations.csv'
+        relations.write_text(
+            'graph_1\tcat_1\tgraph_2\tcat_2\tcomplexite\n'
+            'aller\tV\tallée\tNf\tsimple\n'
+            'allée\tNf\taller\tV\tsimple\n'
+            'aller\tV\tallee\tNf\tsimple\n'
+            'aller\tV\tbeau\tNm\tsimple\n'
+            'aller\tV\tbeau\tAdj\taccidentel\n'
+            'aller\tV\tprendre\tV\tsimple\n',
+            encoding='utf-8',
+        )
+        build.build_database(self.source, self.lex, self.db, self.legacy, demonette=relations)
+        with sqlite3.connect(self.db) as db:
+            row = db.execute("SELECT word_family FROM entry WHERE word='aller'").fetchone()
+            self.assertEqual(json.loads(row[0]), [['prendre', 'verb'], ['allée', 'noun'], ['aller', 'verb']])
+        index = build.export_shards(self.db, self.out)
+        self.assertIn('Démonette', index['sources'])
+        rows = json.loads((self.out / 'al.json').read_text())['entries']
+        self.assertEqual(next(row for row in rows if row[1] == 'aller')[12],
+                         [['prendre', 'verb'], ['allée', 'noun'], ['aller', 'verb']])
+
     def test_redirects(self):
         for word, expected in [('prends', {'prendre'}), ('belle', {'beau'}), ('allées', {'aller', 'allée'}), ('yeux', {'œil'})]:
             self.assertEqual(self.targets(word), expected)

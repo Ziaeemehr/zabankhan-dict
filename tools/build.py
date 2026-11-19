@@ -20,6 +20,7 @@ import sqlite3
 import time
 import unicodedata
 from collections import defaultdict
+from itertools import combinations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -240,7 +241,77 @@ def read_translations(path):
     return senses, examples
 
 
-def build_database(kaikki, lexique, destination, legacy=LEGACY, french_wiktionnaire=None, validation_dir=ROOT / "validation"):
+DEMONETTE_SOURCE = (
+    'Démonette-2, Namer, Hathout et al., Demonext ANR-17-CE23-0005 '
+    '(CC BY-SA 4.0, https://doi.org/10.17605/OSF.IO/DB2W8; filtered and matched to Zabankhan entries)'
+)
+DEMONETTE_POS = {
+    'Nm': 'noun', 'Nf': 'noun', 'Nx': 'noun', 'Npx': 'noun', 'Npf': 'noun',
+    'Npm': 'noun', 'Nmp': 'noun', 'Nfp': 'noun', 'Adj': 'adjective', 'V': 'verb', 'Adv': 'adverb',
+}
+# Wiktionnaire documents the calmement derivation, the noun-to-adjective conversion,
+# and the relationship to calmer. The OSF Démonette release omits calmement.
+CALME_FAMILY = (('calme', 'noun'), ('calme', 'adjective'), ('calmer', 'verb'), ('calmement', 'adverb'))
+CALME_SOURCE = 'French Wiktionary (CC BY-SA 4.0; https://fr.wiktionary.org/wiki/calmement and https://fr.wiktionary.org/wiki/calme)'
+
+
+def import_word_families(db, demonette):
+    def lemma(word):
+        return unicodedata.normalize('NFC', clean(word).replace('’', "'")).lower()
+
+    entries = defaultdict(list)
+    frequencies = {}
+    for word, pos, frequency in db.execute('SELECT word,pos,frequency FROM entry'):
+        key = word, pos
+        entries[lemma(word), pos].append(key)
+        frequencies[key] = frequency
+
+    def match(word, pos):
+        candidates = entries.get((lemma(word), pos), [])
+        exact = (word, pos)
+        return exact if exact in candidates else candidates[0] if len(candidates) == 1 else None
+
+    relatives = defaultdict(set)
+
+    def connect(first, second):
+        if first and second and first != second:
+            relatives[first].add(second)
+            relatives[second].add(first)
+
+    with demonette.open(encoding='utf-8-sig', newline='') as file:
+        # The official OSF relations.csv is tab-delimited.
+        rows = csv.DictReader(file, delimiter='\t')
+        required = {'graph_1', 'cat_1', 'graph_2', 'cat_2', 'complexite'}
+        if not required.issubset(rows.fieldnames or []):
+            raise ValueError('Expected the Démonette-2 relations.csv table')
+        for row in rows:
+            if row['complexite'] not in ('simple', 'complexe', 'motiv-sem'):
+                continue
+            connect(*(match(row[f'graph_{i}'], DEMONETTE_POS.get(row[f'cat_{i}'])) for i in (1, 2)))
+
+    if not relatives:
+        raise ValueError('No Démonette word-family matches in dictionary')
+
+    for first, second in combinations((match(*item) for item in CALME_FAMILY), 2):
+        connect(first, second)
+    if 'word_family' not in {row[1] for row in db.execute('PRAGMA table_info(entry)')}:
+        db.execute("ALTER TABLE entry ADD COLUMN word_family TEXT NOT NULL DEFAULT '[]'")
+    db.execute("UPDATE entry SET word_family='[]' WHERE word_family!='[]'")
+    for (word, pos), family in relatives.items():
+        counts = defaultdict(int)
+        selected = []
+        for target in sorted(family, key=lambda ref: (-frequencies[ref], ref)):
+            if counts[target[1]] < 3:
+                selected.append(target)
+                counts[target[1]] += 1
+        selected.append((word, pos))
+        db.execute('UPDATE entry SET word_family=? WHERE word=? AND pos=?', (dumps(selected), word, pos))
+    current_sources = db.execute("SELECT value FROM meta WHERE key='sources'").fetchone()[0]
+    sources = [current_sources] + [source for source in (DEMONETTE_SOURCE, CALME_SOURCE) if source not in current_sources]
+    db.execute("UPDATE meta SET value=? WHERE key='sources'", ('; '.join(sources),))
+
+
+def build_database(kaikki, lexique, destination, legacy=LEGACY, french_wiktionnaire=None, validation_dir=ROOT / "validation", demonette=None):
     destination = Path(destination)
     previous_senses, previous_examples = read_translations(destination)
     old = {}
@@ -454,6 +525,8 @@ def build_database(kaikki, lexique, destination, legacy=LEGACY, french_wiktionna
                 for target, labels in resolve(source, pos).items():
                     if source != normalize(target):
                         db.execute('INSERT INTO redirect VALUES(?,?,?,?)', (source, target, pos, merge_labels(labels)))
+            if demonette is not None:
+                import_word_families(db, demonette)
         os.replace(temporary, destination)
     finally:
         if temporary.exists():
@@ -480,6 +553,8 @@ def export_shards(database, output, max_bytes=999_999):
         for row in db.execute('SELECT * FROM entry ORDER BY id'):
             e = {k: row[k] for k in ('id', 'word', 'pos', 'freq', 'ipa', 'gender', 'audio')}
             e.update(senses=senses[row['id']], forms=json.loads(row['forms']), expressions=json.loads(row['expressions']), french_definitions=json.loads(row['french_definitions'] if 'french_definitions' in row.keys() else '[]'))
+            if 'word_family' in row.keys():
+                e['word_family'] = json.loads(row['word_family'])
             if more_examples.get(str(row['id'])): e['more_examples'] = more_examples[str(row['id'])]
             entry_ids[(e['word'], e['pos'])] = e['id']
             if e['audio'].startswith(('https://', 'http://')) and len(e['audio'].split('/', 3)) == 4:
@@ -516,7 +591,8 @@ def export_shards(database, output, max_bytes=999_999):
             for s in e.get('senses', [])]) for e in shard['entries']]
         fields = ('id', 'word', 'pos', 'freq', 'ipa', 'gender', 'audio', 'senses', 'forms', 'expressions', 'more_examples', 'french_definitions')
         wire['entries'] = [[e.get(k, [] if k in ('senses', 'expressions') else {} if k == 'forms' else '')
-                            for k in fields] for e in wire['entries']]
+                            for k in fields] + ([e['word_family']] if 'word_family' in e else [])
+                           for e in wire['entries']]
         labels = sorted({r[1] for redirects in shard['redirects'].values() for r in redirects})
         label_ids = {label: i for i, label in enumerate(labels)}
         wire['form_labels'] = labels
@@ -586,9 +662,13 @@ def main():
     parser.add_argument('--validation-dir', type=Path, default=ROOT / 'validation')
     parser.add_argument('--output', type=Path, default=ROOT / 'fr/v2')
     parser.add_argument('--from-sqlite', action='store_true')
+    parser.add_argument('--demonette', type=Path, help='Official Démonette-2 relations.csv (tab-delimited)')
     args = parser.parse_args()
     if not args.from_sqlite:
-        build_database(args.kaikki, args.lexique, args.db, args.legacy, args.french_wiktionnaire, args.validation_dir)
+        build_database(args.kaikki, args.lexique, args.db, args.legacy, args.french_wiktionnaire, args.validation_dir, demonette=args.demonette)
+    elif args.demonette is not None:
+        with sqlite3.connect(args.db) as db:
+            import_word_families(db, args.demonette)
     export_shards(args.db, args.output)
 
 
