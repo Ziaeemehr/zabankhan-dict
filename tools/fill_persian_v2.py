@@ -9,6 +9,8 @@ import argparse
 import json
 import re
 import signal
+import subprocess
+import tempfile
 import sqlite3
 import sys
 import time
@@ -40,7 +42,22 @@ def ask(url, model, items):
     return answer
 
 
-def pending(db, limit):
+def ask_codex(items):
+    """Same prompt through Codex (gpt-6-luna, low effort); read-only sandbox, answer written to a temp file."""
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / 'answer.json'
+        subprocess.run(['codex', 'exec', '-m', 'gpt-6-luna', '-c', 'model_reasoning_effort=low', '-s', 'read-only',
+                        '--ephemeral', '--skip-git-repo-check', '-C', tmp, '-o', str(out),
+                        PROMPT + '\n'.join(json.dumps(i, ensure_ascii=False) for i in items)],
+                       check=True, capture_output=True, text=True, timeout=900, stdin=subprocess.DEVNULL)
+        content = out.read_text(encoding='utf-8')
+    answer = json.loads(content[content.find('{'):content.rfind('}') + 1])
+    if not isinstance(answer, dict):
+        raise ValueError('Expected a JSON object')
+    return answer
+
+
+def pending(db, limit, shard=(0, 1)):
     # Sense/example ids have separate namespaces. Order both together by frequency.
     rows = db.execute('''
         SELECT * FROM (
@@ -51,8 +68,9 @@ def pending(db, limit):
         SELECT 'example',x.id,e.word,e.pos,e.gender,s.en,x.text,x.en,
                e.frequency,e.freq,e.id,s.position,x.position+1
         FROM example x JOIN sense s ON s.id=x.sense_id JOIN entry e ON e.id=s.entry_id WHERE x.fa=''
-        ) ORDER BY frequency DESC,freq DESC,entry_id,position,example_position,kind,id LIMIT ?
-    ''', (limit,)).fetchall()
+        ) WHERE entry_id % ? = ?
+        ORDER BY frequency DESC,freq DESC,entry_id,position,example_position,kind,id LIMIT ?
+    ''', (shard[1], shard[0], limit)).fetchall()
     return [{'id': ('s' if r[0] == 'sense' else 'x') + str(r[1]), 'kind': r[0], 'word': r[2],
              'pos': r[3], 'gender': r[4], 'en': r[5],
              **({'text': r[6], 'english': r[7]} if r[0] == 'example' else {})} for r in rows]
@@ -76,8 +94,8 @@ def apply_answers(db, items, answers):
     return done
 
 
-def fill(db, url, model, limit, batch_size, minutes=None):
-    items = pending(db, limit)
+def fill(db, url, model, limit, batch_size, minutes=None, shard=(0, 1)):
+    items = pending(db, limit, shard)
     print('{} missing translations selected'.format(len(items)), flush=True)
     start, done, failed = time.monotonic(), 0, 0
     for offset in range(0, len(items), batch_size):
@@ -87,9 +105,9 @@ def fill(db, url, model, limit, batch_size, minutes=None):
         answers = {}
         for attempt in range(3):
             try:
-                answers = ask(url, model, chunk)
+                answers = ask_codex(chunk) if model == 'codex' else ask(url, model, chunk)
                 break
-            except (OSError, ValueError, KeyError, IndexError) as error:
+            except (OSError, ValueError, KeyError, IndexError, subprocess.SubprocessError) as error:
                 print('batch {} attempt {}: {}'.format(offset, attempt + 1, error), file=sys.stderr, flush=True)
                 if attempt == 2:
                     failed += 1
@@ -103,19 +121,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('db', nargs='?', type=Path, default=Path(__file__).resolve().parents[1] / 'dist/fr-v2.sqlite')
     parser.add_argument('--url', default='http://127.0.0.1:8080')
-    parser.add_argument('--model', default='gemma4')
+    parser.add_argument('--model', default='gemma4', help="local model name, or 'codex' for gpt-6-luna via codex exec")
     parser.add_argument('--limit', type=int, default=20000, help='maximum missing senses and examples to process')
     parser.add_argument('--batch-size', type=int, default=20)
     parser.add_argument('--minutes', type=float)
+    parser.add_argument('--shard', default='0/1', help='i/n: run n processes in parallel, each takes entries with id %% n == i; --limit is per process')
     args = parser.parse_args()
+    shard = tuple(int(x) for x in args.shard.split('/'))
+    if len(shard) != 2 or not 0 <= shard[0] < shard[1]:
+        parser.error('shard must look like 0/4')
     if args.limit < 0 or args.batch_size < 1 or (args.minutes is not None and args.minutes <= 0):
         parser.error('limit must be nonnegative; batch-size and minutes must be positive')
     def stop(signum, frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, stop)
-    with sqlite3.connect('file:' + str(args.db.resolve()) + '?mode=rw', uri=True) as db:
+    with sqlite3.connect('file:' + str(args.db.resolve()) + '?mode=rw', uri=True, timeout=120) as db:  # parallel shards wait for each other's commits
         try:
-            failed = fill(db, args.url, args.model, args.limit, args.batch_size, args.minutes)
+            failed = fill(db, args.url, args.model, args.limit, args.batch_size, args.minutes, shard)
         except KeyboardInterrupt:
             print('Stopped; completed batches are saved.', flush=True)
             return 0

@@ -242,7 +242,8 @@ class BuiltDataTests(unittest.TestCase):
         output = build.ROOT / 'fr/v2'
         index = json.loads((output / 'index.json').read_text())
         self.assertTrue(index['split'])
-        self.assertLess(sum((output / (key + '.json')).stat().st_size for key in index['shards']), 50000000)
+        # The app downloads one small shard per lookup; this caps the whole set. Raised from 50 MB as Persian meanings fill in.
+        self.assertLess(sum((output / (key + '.json')).stat().st_size for key in index['shards']), 55000000)
         for key in index['shards']:
             self.assertLessEqual((output / (key + '.json')).stat().st_size, 999999)
 

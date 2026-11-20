@@ -527,6 +527,12 @@ def build_database(kaikki, lexique, destination, legacy=LEGACY, french_wiktionna
                         db.execute('INSERT INTO redirect VALUES(?,?,?,?)', (source, target, pos, merge_labels(labels)))
             if demonette is not None:
                 import_word_families(db, demonette)
+            try:
+                from pos_frequency import apply_pos_frequencies
+            except ImportError:  # imported as tools.build (tests)
+                from tools.pos_frequency import apply_pos_frequencies
+            # After word families, which rank relatives by the word-level value; this only orders homograph entries.
+            apply_pos_frequencies(db, lexique, normalize)
         os.replace(temporary, destination)
     finally:
         if temporary.exists():
