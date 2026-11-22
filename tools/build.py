@@ -253,6 +253,11 @@ DEMONETTE_POS = {
 # and the relationship to calmer. The OSF Démonette release omits calmement.
 CALME_FAMILY = (('calme', 'noun'), ('calme', 'adjective'), ('calmer', 'verb'), ('calmement', 'adverb'))
 CALME_SOURCE = 'French Wiktionary (CC BY-SA 4.0; https://fr.wiktionary.org/wiki/calmement and https://fr.wiktionary.org/wiki/calme)'
+# Démonette pairs that join unrelated words (homographs such as lire "lira", or
+# spurious indirect links). Neither word lists the other as a relative.
+UNRELATED_WORDS = {frozenset(pair) for pair in (
+    ('lire', 'lion'), ('lire', 'élection'), ('lire', 'lisette'), ('beau', 'belette'),
+)}
 # Common learner-facing derivatives that are missing or fragmented in Démonette-2.
 # Keep these as connected families so each of the entries can be looked up from the others.
 LEARNER_FAMILIES = (
@@ -331,6 +336,7 @@ def resolve_word_families(headwords, demonette):
     for headword, direct in relatives.items():
         family = direct | indirect.get(headword, set())
         family.discard(headword)
+        family = {ref for ref in family if frozenset((headword[0], ref[0])) not in UNRELATED_WORDS}
         if not family:
             continue
         counts = defaultdict(int)
