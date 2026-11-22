@@ -268,13 +268,13 @@ LEARNER_FAMILIES = (
 LEARNER_FAMILY_SOURCE = 'Curated common French derivational families, cross-checked against the dictionary headwords'
 
 
-def import_word_families(db, demonette):
+def resolve_word_families(headwords, demonette):
     def lemma(word):
         return unicodedata.normalize('NFC', clean(word).replace('’', "'")).lower()
 
     entries = defaultdict(list)
     frequencies = {}
-    for word, pos, frequency in db.execute('SELECT word,pos,frequency FROM entry'):
+    for word, pos, frequency in headwords:
         key = word, pos
         entries[lemma(word), pos].append(key)
         frequencies[key] = frequency
@@ -285,6 +285,8 @@ def import_word_families(db, demonette):
         return exact if exact in candidates else candidates[0] if len(candidates) == 1 else None
 
     relatives = defaultdict(set)
+    simple_links = defaultdict(set)
+    lexemes = {}
 
     def connect(first, second):
         if first and second and first != second:
@@ -298,9 +300,18 @@ def import_word_families(db, demonette):
         if not required.issubset(rows.fieldnames or []):
             raise ValueError('Expected the Démonette-2 relations.csv table')
         for row in rows:
-            if row['complexite'] not in ('simple', 'complexe', 'motiv-sem'):
+            if row['complexite'].strip() not in ('simple', 'complexe', 'motiv-sem'):
                 continue
-            connect(*(match(row[f'graph_{i}'], DEMONETTE_POS.get(row[f'cat_{i}'])) for i in (1, 2)))
+            first, second = (match(row[f'graph_{i}'], DEMONETTE_POS.get(row[f'cat_{i}'])) for i in (1, 2))
+            connect(first, second)
+            # Keep source lexeme IDs so an indirect link cannot cross homographs.
+            family_id = row.get('fid')
+            first_id, second_id = row.get('lid_1'), row.get('lid_2')
+            if row['complexite'].strip() == 'simple' and family_id and first_id and second_id and first and second:
+                first_key, second_key = (family_id, first_id), (family_id, second_id)
+                lexemes[first_key], lexemes[second_key] = first, second
+                simple_links[first_key].add(second_key)
+                simple_links[second_key].add(first_key)
 
     if not relatives:
         raise ValueError('No Démonette word-family matches in dictionary')
@@ -309,18 +320,36 @@ def import_word_families(db, demonette):
         members = [match(*item) for item in family]
         for first, second in combinations(members, 2):
             connect(first, second)
-    if 'word_family' not in {row[1] for row in db.execute('PRAGMA table_info(entry)')}:
-        db.execute("ALTER TABLE entry ADD COLUMN word_family TEXT NOT NULL DEFAULT '[]'")
-    db.execute("UPDATE entry SET word_family='[]' WHERE word_family!='[]'")
-    for (word, pos), family in relatives.items():
+    indirect = defaultdict(set)
+    for lexeme, neighbors in simple_links.items():
+        for neighbor in neighbors:
+            # Highly connected pivots produce many remote relatives.
+            if len(simple_links[neighbor]) <= 12:
+                indirect[lexemes[lexeme]].update(lexemes[target] for target in simple_links[neighbor])
+
+    results = {}
+    for headword, direct in relatives.items():
+        family = direct | indirect.get(headword, set())
+        family.discard(headword)
+        if not family:
+            continue
         counts = defaultdict(int)
         selected = []
-        for target in sorted(family, key=lambda ref: (-frequencies[ref], ref)):
+        for target in sorted(family, key=lambda ref: (ref not in direct, -frequencies[ref], ref)):
             if counts[target[1]] < 8:
                 selected.append(target)
                 counts[target[1]] += 1
-        selected.append((word, pos))
-        db.execute('UPDATE entry SET word_family=? WHERE word=? AND pos=?', (dumps(selected), word, pos))
+        results[headword] = selected + [headword]
+    return results
+
+
+def import_word_families(db, demonette):
+    families = resolve_word_families(db.execute('SELECT word,pos,frequency FROM entry'), demonette)
+    if 'word_family' not in {row[1] for row in db.execute('PRAGMA table_info(entry)')}:
+        db.execute("ALTER TABLE entry ADD COLUMN word_family TEXT NOT NULL DEFAULT '[]'")
+    db.execute("UPDATE entry SET word_family='[]' WHERE word_family!='[]'")
+    db.executemany('UPDATE entry SET word_family=? WHERE word=? AND pos=?',
+                   ((dumps(family), word, pos) for (word, pos), family in families.items()))
     current_sources = db.execute("SELECT value FROM meta WHERE key='sources'").fetchone()[0]
     sources = [current_sources] + [source for source in (DEMONETTE_SOURCE, CALME_SOURCE, LEARNER_FAMILY_SOURCE)
                                    if source not in current_sources]
@@ -674,6 +703,73 @@ def export_shards(database, output, max_bytes=999_999):
     return index
 
 
+def refresh_shard_families(directory, demonette):
+    """Update published v2 data using the same resolver as a full database build."""
+    index_path = directory / 'index.json'
+    index = json.loads(index_path.read_text(encoding='utf-8'))
+    if index['format'] != 2 or index['lang'] != 'fr':
+        raise ValueError('Expected a French v2 dictionary')
+    shards = {key: json.loads((directory / f'{key}.json').read_text(encoding='utf-8'))
+              for key in index['shards']}
+    families = resolve_word_families(
+        ((row[1], row[2], row[3]) for shard in shards.values() for row in shard['entries']), demonette)
+    updates = {}
+    changed = 0
+    for key, shard in shards.items():
+        touched = False
+        for row in shard['entries']:
+            family = [list(ref) for ref in families.get((row[1], row[2]), ())]
+            if family == (row[12] if len(row) > 12 else []):
+                continue
+            row[12:] = [family] if family else []
+            changed += 1
+            touched = True
+        if touched:
+            updates[key] = shard
+
+    removed = set()
+    pending = list(updates)
+    while pending:
+        key = pending.pop()
+        shard = updates[key]
+        if len(dumps(shard).encode('utf-8')) <= 999_999:
+            continue
+        children = {}
+        def child(word):
+            return children.setdefault(shard_key(word, len(key) + 1),
+                                       {'entries': [], 'redirects': {}, 'targets': {},
+                                        'form_labels': shard['form_labels']})
+        for row in shard['entries']:
+            child(row[1])['entries'].append(row)
+        for word, redirects in shard['redirects'].items():
+            part = child(word)
+            part['redirects'][word] = redirects
+            for entry_id, _ in redirects:
+                part['targets'][str(entry_id)] = shard['targets'][str(entry_id)]
+        if len(children) == 1 and next(iter(children)).endswith('_'):
+            raise ValueError(f'Cannot split oversized shard {key}')
+        updates.pop(key)
+        removed.add(key)
+        index['split'][key] = sorted(children)
+        updates.update(children)
+        pending.extend(children)
+
+    if updates:
+        index['shards'] = sorted((set(shards) | updates.keys()) - removed)
+        index['version'] = max(index['version'] + 1, int(time.time()))
+        for key, shard in updates.items():
+            path = directory / f'{key}.json'
+            tmp = path.with_suffix('.json.tmp')
+            tmp.write_text(dumps(shard), encoding='utf-8')
+            os.replace(tmp, path)
+        tmp = index_path.with_suffix('.json.tmp')
+        tmp.write_text(dumps(index), encoding='utf-8')
+        os.replace(tmp, index_path)
+        for key in removed & shards.keys():
+            (directory / f'{key}.json').unlink()
+    print(f'Family coverage: {len(families):,} / {index["entries"]:,}; changed entries: {changed:,}')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--kaikki', type=Path, default=SOURCE / 'kaikki.org-dictionary-French.jsonl.gz')
@@ -685,7 +781,14 @@ def main():
     parser.add_argument('--output', type=Path, default=ROOT / 'fr/v2')
     parser.add_argument('--from-sqlite', action='store_true')
     parser.add_argument('--demonette', type=Path, help='Official Démonette-2 relations.csv (tab-delimited)')
+    parser.add_argument('--refresh-shard-families', action='store_true',
+                        help='Update word families in existing --output shards without rebuilding SQLite')
     args = parser.parse_args()
+    if args.refresh_shard_families:
+        if args.demonette is None or args.from_sqlite:
+            parser.error('--refresh-shard-families requires --demonette and cannot be used with --from-sqlite')
+        refresh_shard_families(args.output, args.demonette)
+        return
     if not args.from_sqlite:
         build_database(args.kaikki, args.lexique, args.db, args.legacy, args.french_wiktionnaire, args.validation_dir, demonette=args.demonette)
     elif args.demonette is not None:
