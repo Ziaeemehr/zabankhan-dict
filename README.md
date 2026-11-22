@@ -16,11 +16,17 @@ Download [Démonette-2.0's relations.csv](https://osf.io/download/8qcsw/) and pa
 python3 tools/build.py --demonette /path/to/relations.csv
 # To update an existing v2 database and re-export its shards:
 python3 tools/build.py --from-sqlite --demonette /path/to/relations.csv
+# To update the checked-in v2 shards directly:
+python3 tools/build.py --refresh-shard-families --demonette /path/to/relations.csv
 ```
 
 The build matches spellings and parts of speech, keeps documented derivational
-links, and selects up to three relatives per part of speech by Lexique
-frequency. It also includes the queried headword in its family. The SQLite
+links, and follows up to two simple derivation links within the same source
+family using lexeme IDs. It selects up to eight relatives per part of speech,
+prioritizing direct links then frequency. The direct shard refresh uses the
+frequency bands in v2. Common families for *apprendre* and *comprendre* are
+also curated so their frequently used forms remain discoverable. It includes
+the queried headword in its family. The SQLite
 `entry.word_family` column and optional 13th field of a v2 JSON entry hold the
 same list of lemma and part-of-speech pairs. Definitions stay in the target
 entries.

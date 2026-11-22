@@ -34,6 +34,14 @@ class BuildTests(unittest.TestCase):
                 entry('prendre feu', 'verb'), entry('beau', 'adj', forms=[{'form': 'belle', 'tags': ['feminine']}]),
                 entry('aller', 'verb'), entry('allée', 'noun'), entry('œil', 'noun', forms=[{'form': 'yeux', 'tags': ['plural']}]),
                 dict(word='rendre compte', pos='verb', senses=[{'glosses': ['to realize'], 'tags': ['reflexive']}]), entry('rendre', 'verb'),
+                entry('apprendre', 'verb'), entry('apprentissage', 'noun'), entry('autoapprentissage', 'noun'),
+                entry('apprenant', 'noun'), entry('apprenti', 'noun'), entry('appris', 'adj'),
+                entry('réapprendre', 'verb'), entry('désapprendre', 'verb'),
+                entry('comprendre', 'verb'), entry('compris', 'adj'), entry('incompris', 'adj'),
+                entry('compréhension', 'noun'), entry('incompréhension', 'noun'),
+                entry('compréhensif', 'adj'), entry('incompréhensif', 'adj'),
+                entry('compréhensible', 'adj'), entry('incompréhensible', 'adj'),
+                entry('incompréhensibilité', 'noun'),
                 inflected('allé', 'verb', 'aller', ['past', 'participle', 'form-of']),
                 inflected('allées', 'verb', 'allé', ['feminine', 'plural', 'form-of']),
                 inflected('allées', 'noun', 'allée', ['plural', 'form-of'])]
@@ -72,6 +80,23 @@ class BuildTests(unittest.TestCase):
         with sqlite3.connect(self.db) as db:
             row = db.execute("SELECT word_family FROM entry WHERE word='aller'").fetchone()
             self.assertEqual(json.loads(row[0]), [['prendre', 'verb'], ['allée', 'noun'], ['aller', 'verb']])
+            for word, expected in (
+                ('apprendre', {('apprentissage', 'noun'), ('autoapprentissage', 'noun'), ('apprenant', 'noun'),
+                               ('apprenti', 'noun'), ('appris', 'adjective'), ('réapprendre', 'verb'),
+                               ('désapprendre', 'verb')}),
+                ('comprendre', {('compris', 'adjective'), ('incompris', 'adjective'),
+                                ('compréhension', 'noun'), ('incompréhension', 'noun'),
+                                ('compréhensif', 'adjective'), ('incompréhensif', 'adjective'),
+                                ('compréhensible', 'adjective'), ('incompréhensible', 'adjective'),
+                                ('incompréhensibilité', 'noun')}),
+            ):
+                family = json.loads(db.execute('SELECT word_family FROM entry WHERE word=? AND pos=?',
+                                                (word, 'verb')).fetchone()[0])
+                self.assertEqual({tuple(ref) for ref in family} - {(word, 'verb')}, expected)
+                by_pos = {}
+                for _, pos in family:
+                    by_pos[pos] = by_pos.get(pos, 0) + 1
+                self.assertLessEqual(max(by_pos.values()), 9)  # Eight relatives plus the headword.
         index = build.export_shards(self.db, self.out)
         self.assertIn('Démonette', index['sources'])
         rows = json.loads((self.out / 'al.json').read_text())['entries']
