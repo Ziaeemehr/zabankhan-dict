@@ -253,6 +253,19 @@ DEMONETTE_POS = {
 # and the relationship to calmer. The OSF Démonette release omits calmement.
 CALME_FAMILY = (('calme', 'noun'), ('calme', 'adjective'), ('calmer', 'verb'), ('calmement', 'adverb'))
 CALME_SOURCE = 'French Wiktionary (CC BY-SA 4.0; https://fr.wiktionary.org/wiki/calmement and https://fr.wiktionary.org/wiki/calme)'
+# Common learner-facing derivatives that are missing or fragmented in Démonette-2.
+# Keep these as connected families so each of the entries can be looked up from the others.
+LEARNER_FAMILIES = (
+    (('apprendre', 'verb'), ('apprentissage', 'noun'), ('autoapprentissage', 'noun'),
+     ('apprenant', 'noun'), ('apprenti', 'noun'), ('appris', 'adjective'),
+     ('réapprendre', 'verb'), ('désapprendre', 'verb')),
+    (('comprendre', 'verb'), ('compris', 'adjective'), ('incompris', 'adjective'),
+     ('compréhension', 'noun'), ('incompréhension', 'noun'),
+     ('compréhensif', 'adjective'), ('incompréhensif', 'adjective'),
+     ('compréhensible', 'adjective'), ('incompréhensible', 'adjective'),
+     ('incompréhensibilité', 'noun')),
+)
+LEARNER_FAMILY_SOURCE = 'Curated common French derivational families, cross-checked against the dictionary headwords'
 
 
 def import_word_families(db, demonette):
@@ -292,8 +305,10 @@ def import_word_families(db, demonette):
     if not relatives:
         raise ValueError('No Démonette word-family matches in dictionary')
 
-    for first, second in combinations((match(*item) for item in CALME_FAMILY), 2):
-        connect(first, second)
+    for family in (CALME_FAMILY, *LEARNER_FAMILIES):
+        members = [match(*item) for item in family]
+        for first, second in combinations(members, 2):
+            connect(first, second)
     if 'word_family' not in {row[1] for row in db.execute('PRAGMA table_info(entry)')}:
         db.execute("ALTER TABLE entry ADD COLUMN word_family TEXT NOT NULL DEFAULT '[]'")
     db.execute("UPDATE entry SET word_family='[]' WHERE word_family!='[]'")
@@ -301,13 +316,14 @@ def import_word_families(db, demonette):
         counts = defaultdict(int)
         selected = []
         for target in sorted(family, key=lambda ref: (-frequencies[ref], ref)):
-            if counts[target[1]] < 3:
+            if counts[target[1]] < 8:
                 selected.append(target)
                 counts[target[1]] += 1
         selected.append((word, pos))
         db.execute('UPDATE entry SET word_family=? WHERE word=? AND pos=?', (dumps(selected), word, pos))
     current_sources = db.execute("SELECT value FROM meta WHERE key='sources'").fetchone()[0]
-    sources = [current_sources] + [source for source in (DEMONETTE_SOURCE, CALME_SOURCE) if source not in current_sources]
+    sources = [current_sources] + [source for source in (DEMONETTE_SOURCE, CALME_SOURCE, LEARNER_FAMILY_SOURCE)
+                                   if source not in current_sources]
     db.execute("UPDATE meta SET value=? WHERE key='sources'", ('; '.join(sources),))
 
 

@@ -19,8 +19,10 @@ python3 tools/build.py --from-sqlite --demonette /path/to/relations.csv
 ```
 
 The build matches spellings and parts of speech, keeps documented derivational
-links, and selects up to three relatives per part of speech by Lexique
-frequency. It also includes the queried headword in its family. The SQLite
+links, and selects up to eight relatives per part of speech by Lexique
+frequency. Common learner-facing families for *apprendre* and *comprendre* are
+also curated so their frequently used forms remain discoverable. It includes
+the queried headword in its family. The SQLite
 `entry.word_family` column and optional 13th field of a v2 JSON entry hold the
 same list of lemma and part-of-speech pairs. Definitions stay in the target
 entries.
