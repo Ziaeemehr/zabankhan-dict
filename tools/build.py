@@ -257,6 +257,8 @@ CALME_SOURCE = 'French Wiktionary (CC BY-SA 4.0; https://fr.wiktionary.org/wiki/
 # spurious indirect links). Neither word lists the other as a relative.
 UNRELATED_WORDS = {frozenset(pair) for pair in (
     ('lire', 'lion'), ('lire', 'élection'), ('lire', 'lisette'), ('beau', 'belette'),
+    ('abduction', 'enlever'), ('amour', 'vénérien'), ('acanthite', 'épine'), ('acmite', 'pointe'), ('albite', 'blanc'), ('aleurite', 'farine'), ('aiguière', 'eau'), ('achromatique', 'couleur'), ('antichar', 'caret'), ('alourdissement', 'gravatif'), ('Illinois', 'illite'),
+    ('aller', 'allier'), ('amour', 'vénérien'), ('anticoniste', 'con'), ('bey', 'bégien'), ('birolan', 'bière'), ('bocage', 'boschain'), ('cartonnier', 'quart'), ('cogne', 'cognien'), ('colombier', 'coulomb'), ('digne', 'dinien'), ('doux', 'dulcinien'), ('hyracien', 'souris'), ('job', 'jovien'), ('lac', 'simonet'), ('modénien', 'monnaie'), ('mouchard', 'muscadien'), ('mousson', 'mussinien'), ('moyen', 'ménovicien'), ('pallacien', 'paillé'), ('perrier', 'pierre'), ('pernette', 'pierre'), ('pictien', 'poil'), ('pixien', 'poil'), ('possidéen', 'poisson'), ('premier', 'promiolian'), ('rotzéran', 'roche'), ('rovien', 'roux'), ('rotavillien', 'rue'), ('samarien', 'somme'), ('viduen', 'vue'), ('vézien', 'vue'), ('illiers-l’evêque', 'épiscopien'), ('ape', 'apien'), ('albain', 'albe'), ('aube', 'albien'), ('archéen', 'ancien'),
 )}
 # Common learner-facing derivatives that are missing or fragmented in Démonette-2.
 # Keep these as connected families so each of the entries can be looked up from the others.
